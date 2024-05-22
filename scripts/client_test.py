@@ -7,7 +7,7 @@ import time
 url = "http://127.0.0.1:8000/process_frame"
 
 # RTSP stream URL
-rtsp_url = "your_rtsp_stream_url"
+rtsp_url = "rtsp://localhost:8554/mystream"
 
 # Open the RTSP stream
 cap = cv2.VideoCapture(rtsp_url)
