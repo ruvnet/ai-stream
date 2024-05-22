@@ -1,6 +1,6 @@
 # AI Stream
 
-This project sets up a video processing service on AWS ECS that accepts an RTSP stream, converts it to base64 images, and sends them to the GPT-4 Vision API for processing.
+This project sets up a video processing service on AWS ECS that accepts an RTSP stream, converts it to base64 images, and sends them to the GPT-4 Vision API for processing. The processed responses, which include descriptions of the video stream, are then returned.
 
 ## Project Structure
 
@@ -66,7 +66,7 @@ ai-stream/
 ## Notes
 
 - Ensure you replace placeholder values in the `.env` file with your actual values.
-- The ECS service will continuously process frames from the RTSP stream and send them to the GPT-4 Vision API.
+- The ECS service will continuously process frames from the RTSP stream, send them to the GPT-4 Vision API, and return text descriptions of the video stream.
 
 ## Source Files
 
@@ -107,6 +107,8 @@ import numpy as np
 import os
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+RTSP_STREAM_URL = os.getenv('RTSP_STREAM_URL')
+FRAME_RATE = int(os.getenv('FRAME_RATE', 1))
 
 async def process_frame(frame_data):
     nparr = np.frombuffer(frame_data, np.uint8)
@@ -133,6 +135,25 @@ async def process_frame(frame_data):
         return response.json().get('choices', [{}])[0].get('text', 'No response')
     else:
         return f"Error: {response.status_code}"
+
+def capture_frames():
+    cap = cv2.VideoCapture(RTSP_STREAM_URL)
+    if not cap.isOpened():
+        raise Exception(f"Error opening RTSP stream from {RTSP_STREAM_URL}")
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        # Process frame
+        response = process_frame(cv2.imencode('.jpg', frame)[1].tobytes())
+        print(response)  # For debugging, replace with appropriate logging
+
+        # Sleep to control frame rate
+        cv2.waitKey(int(1000 / FRAME_RATE))
+
+    cap.release()
 ```
 
 ### `src/Dockerfile`
@@ -289,6 +310,7 @@ cap = cv2.VideoCapture(0)
 ret, frame = cap.read()
 cap.release()
 
+```python
 # Encode the frame as JPEG
 ret, buffer = cv2.imencode('.jpg', frame)
 if not ret:
@@ -303,12 +325,24 @@ files = {
 response = requests.post(url, files=files)
 
 # Print the response from the Quart app
-print(response.json())
+try:
+    response_json = response.json()
+    print(response_json)
+except requests.exceptions.JSONDecodeError:
+    print("Response content is not in JSON format")
+    print("Response text:", response.text)
 ```
 
-### Final Notes:
+## Final Notes
 
 - Ensure all the required AWS IAM roles and permissions are set up correctly.
 - Ensure the `.env` file contains all the necessary environment variables.
 - Replace placeholders with your actual AWS and OpenAI credentials.
- 
+- The ECS service will continuously process frames from the RTSP stream, send them to the GPT-4 Vision API, and return text descriptions of the video stream.
+
+### Testing the RTSP Stream
+
+If you need to test the RTSP stream locally, you can use OBS (Open Broadcaster Software) to stream video from your local machine. Set OBS to stream to an RTSP server or use a local RTSP server setup to provide a stream URL that can be used in the `.env` file.
+
+To make the RTSP stream available publicly for testing on GitHub Codespaces, ensure your local network allows for public access or use a service that provides a publicly accessible RTSP stream.
+
