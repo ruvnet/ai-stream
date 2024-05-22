@@ -1,11 +1,11 @@
-# AWS ECS Video Processor
+# AI Stream
 
 This project sets up a video processing service on AWS ECS that accepts an RTSP stream, converts it to base64 images, and sends them to the GPT-4 Vision API for processing.
 
 ## Project Structure
 
 ```
-my_aws_ecs_video_processor/
+ai-stream/
 ├── src/
 │   ├── app.py
 │   ├── video_processor.py
@@ -16,6 +16,7 @@ my_aws_ecs_video_processor/
 │   ├── create_ecs_resources.py
 │   ├── setup.sh
 ├── .env
+├── .gitignore
 ├── README.md
 ```
 
@@ -24,8 +25,8 @@ my_aws_ecs_video_processor/
 1. **Clone the repository**:
 
    ```bash
-   git clone https://github.com/yourusername/my_aws_ecs_video_processor.git
-   cd my_aws_ecs_video_processor
+   git clone https://github.com/ruvnet/ai-stream.git
+   cd ai-stream
    ```
 
 2. **Run the setup script**:
@@ -72,17 +73,25 @@ my_aws_ecs_video_processor/
 ### `src/app.py`
 
 ```python
-from flask import Flask, request, jsonify
+from quart import Quart, request, jsonify
 from video_processor import process_frame
 import os
 
-app = Flask(__name__)
+app = Quart(__name__)
 
 @app.route('/process_frame', methods=['POST'])
 async def process_frame_endpoint():
-    frame = await request.files['frame'].read()
-    response = await process_frame(frame)
-    return jsonify({'response': response})
+    try:
+        files = await request.files
+        if 'frame' not in files:
+            return jsonify({'error': 'No file part in the request'}), 400
+
+        file = files['frame']
+        file_content = await file.read()
+        response = await process_frame(file_content)
+        return jsonify({'response': response})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
@@ -98,8 +107,6 @@ import numpy as np
 import os
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-RTSP_STREAM_URL = os.getenv('RTSP_STREAM_URL')
-FRAME_RATE = int(os.getenv('FRAME_RATE', 1))
 
 async def process_frame(frame_data):
     nparr = np.frombuffer(frame_data, np.uint8)
@@ -146,7 +153,7 @@ CMD ["python", "app.py"]
 ### `src/requirements.txt`
 
 ```plaintext
-Flask
+quart
 opencv-python-headless
 requests
 ```
@@ -263,10 +270,9 @@ touch .env
 touch README.md
 ```
 
-
 ### Example Client Script to Test the Endpoint
 
-Here’s an example client script that you can use to test your endpoint. This script will capture a frame from your local webcam, send it to the Flask app running in your ECS container, and print the response.
+Here’s an example client script that you can use to test your endpoint. This script will capture a frame from your local webcam, send it to the Quart app running in your ECS container, and print the response.
 
 ### `client_test.py`
 
@@ -275,7 +281,7 @@ import cv2
 import requests
 import base64
 
-# URL of the Flask app running in your ECS container
+# URL of the Quart app running in your ECS container
 url = "http://YOUR_ECS_SERVICE_PUBLIC_IP:5000/process_frame"
 
 # Capture a frame from your webcam
@@ -293,10 +299,10 @@ files = {
     'frame': ('frame.jpg', buffer.tobytes(), 'image/jpeg')
 }
 
-# Send the frame to the Flask app
+# Send the frame to the Quart app
 response = requests.post(url, files=files)
 
-# Print the response from the Flask app
+# Print the response from the Quart app
 print(response.json())
 ```
 
@@ -305,3 +311,4 @@ print(response.json())
 - Ensure all the required AWS IAM roles and permissions are set up correctly.
 - Ensure the `.env` file contains all the necessary environment variables.
 - Replace placeholders with your actual AWS and OpenAI credentials.
+ 
