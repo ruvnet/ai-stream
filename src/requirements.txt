@@ -1,0 +1,8 @@
+Flask[async]
+Werkzeug==2.0.3
+opencv-python-headless==4.5.5.64  # Update to a newer version
+requests==2.26.0
+numpy==1.21.4  # Compatible version with Python 3.10
+python-dotenv==0.19.2
+quart
+hypercorn
