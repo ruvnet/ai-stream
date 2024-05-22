@@ -1,3 +1,5 @@
+# create_ecs_resources.py creates ECS resources including a cluster, task definition, and service.
+
 import boto3
 import os
 

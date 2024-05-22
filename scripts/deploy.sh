@@ -1,7 +1,8 @@
 #!/bin/bash
+# deploy.sh script: Build and push Docker image to Amazon ECR
 
 # Variables
-AWS_REGION=us-west-2
+AWS_REGION=us-east-1
 ECR_REPOSITORY=my_video_processor_repo
 IMAGE_TAG=latest
 

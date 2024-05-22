@@ -141,3 +141,6 @@ __pypackages__/
 *.swp
 *~
 
+# aws
+*aws
+aws*
