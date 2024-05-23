@@ -144,3 +144,7 @@ __pypackages__/
 # aws
 *aws
 aws*
+
+#NGINX
+NGINX*
+nginx*

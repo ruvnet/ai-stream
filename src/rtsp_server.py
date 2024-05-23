@@ -1,16 +1,18 @@
 import gi
-gi.require_version('Gst', '1.0')
-gi.require_version('GstRtspServer', '1.0')
-from gi.repository import Gst, GstRtspServer, GObject, GLib
 import os
 import cv2
 import base64
 import requests
 import time
+import logging
 from threading import Thread
 from queue import Queue, Empty
-from pyngrok import ngrok, conf
+import subprocess
+from gi.repository import Gst, GstRtspServer, GObject, GLib
 from dotenv import load_dotenv
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Load environment variables from .env file
 load_dotenv()
@@ -21,26 +23,45 @@ CHUNK_DURATION = 10  # seconds
 API_KEY = os.getenv("OPENAI_API_KEY")  # Use environment variable for API key
 NGROK_AUTH_TOKEN = os.getenv("NGROK_AUTH_TOKEN")  # Use environment variable for ngrok auth token
 CHUNKED_RESPONSES = True  # Set to False for streaming text responses
+MAX_IMAGES = 5  # Maximum number of images to send in one request
 
 # Validate environment variables
 if not API_KEY:
+    logging.critical("Missing OPENAI_API_KEY environment variable")
     raise ValueError("Missing OPENAI_API_KEY environment variable")
 if not NGROK_AUTH_TOKEN:
+    logging.critical("Missing NGROK_AUTH_TOKEN environment variable")
     raise ValueError("Missing NGROK_AUTH_TOKEN environment variable")
 
-# Load ngrok configuration
-ngrok_conf = conf.PyngrokConfig(config_path="~/.ngrok2/ngrok.yml")
-ngrok.set_auth_token(NGROK_AUTH_TOKEN)
+# Initialize GStreamer
+gi.require_version('Gst', '1.0')
+gi.require_version('GstRtspServer', '1.0')
 
-# Start ngrok tunnel
-rtsp_tunnel = ngrok.connect(8554, "tcp", pyngrok_config=ngrok_conf)
+# Start ngrok tunnel using subprocess
+logging.info(f"Using ngrok Auth Token: {NGROK_AUTH_TOKEN}")
+subprocess.run(["ngrok", "authtoken", NGROK_AUTH_TOKEN], check=True)
+ngrok_process = subprocess.Popen(["ngrok", "tcp", "8554"])
 
-# Extract public URL
-public_url = rtsp_tunnel.public_url.replace("tcp://", "rtsp://")
-RTSP_STREAM_URL = f"{public_url}/test"
+time.sleep(5)  # Give ngrok time to establish the tunnel
 
-# Display the public URL
-print(f"RTSP server is running at {RTSP_STREAM_URL}")
+# Fetch the public URL from ngrok
+try:
+    response = requests.get('http://127.0.0.1:4040/api/tunnels')
+    response.raise_for_status()
+    tunnels = response.json()['tunnels']
+    public_url = None
+    for tunnel in tunnels:
+        if tunnel['proto'] == 'tcp':
+            public_url = tunnel['public_url']
+            break
+    if not public_url:
+        raise RuntimeError("Could not get public URL from ngrok")
+    public_url = public_url.replace("tcp://", "rtsp://")
+    RTSP_STREAM_URL = f"{public_url}/test"
+    logging.info(f"RTSP server is running at {RTSP_STREAM_URL}")
+except requests.exceptions.RequestException as e:
+    logging.critical(f"Failed to fetch ngrok tunnel URL: {e}")
+    raise
 
 # Function to encode image to base64
 def encode_image(image):
@@ -58,7 +79,7 @@ def send_images_to_gpt4(images):
     messages = [
         {"role": "user", "content": {"type": "text", "text": "What’s in these images?"}}
     ]
-    for image in images:
+    for image in images[:MAX_IMAGES]:  # Limit the number of images
         messages.append({"role": "user", "content": {"type": "image_url", "image_url": f"data:image/jpeg;base64,{image}"}})
     
     payload = {
@@ -67,24 +88,28 @@ def send_images_to_gpt4(images):
         "max_tokens": 300
     }
     
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    if response.status_code == 200:
-        print(response.json())
-    else:
-        print(f"Error: {response.status_code}, Message: {response.json()}")
+    try:
+        response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        logging.info(f"GPT-4 Vision API response: {response.json()}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"API request failed: {e}")
+        logging.error(f"Response: {response.text if response else 'No response'}")
 
 # Function to capture frames from RTSP stream
 def capture_frames(queue):
+    logging.debug(f"Attempting to capture frames from {RTSP_STREAM_URL}")
     cap = cv2.VideoCapture(RTSP_STREAM_URL)
     if not cap.isOpened():
-        print(f"Error: Could not open video stream from {RTSP_STREAM_URL}")
+        logging.error(f"Error: Could not open video stream from {RTSP_STREAM_URL}")
         return
     
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("Error: Failed to read frame from stream")
+            logging.error("Error: Failed to read frame from stream")
             break
+        logging.debug("Captured frame from stream")
         queue.put(frame)
         time.sleep(1 / FPS)
     cap.release()
@@ -101,6 +126,7 @@ def process_frames(queue):
             except Empty:
                 pass
         if images:
+            logging.info(f"Sending {len(images)} images to GPT-4 Vision API")
             send_images_to_gpt4(images)
 
 # RTSP Server class
@@ -113,10 +139,10 @@ class RTSPServer:
         self.factory.set_shared(True)
         self.server.get_mount_points().add_factory("/test", self.factory)
         self.server.attach(None)
-        print("RTSP server is running at rtsp://localhost:8554/test")
+        logging.info("RTSP server is running at rtsp://localhost:8554/test")
 
 if __name__ == "__main__":
-    # Start RTSP server
+    logging.info("Starting RTSP server...")
     server = RTSPServer()
     
     # Create a queue to hold frames
@@ -132,4 +158,9 @@ if __name__ == "__main__":
     
     # Run the main loop
     loop = GLib.MainLoop()
+    logging.info("Entering main loop...")
     loop.run()
+    
+    # Ensure ngrok process is terminated when the script ends
+    ngrok_process.terminate()
+    logging.info("ngrok process terminated")
