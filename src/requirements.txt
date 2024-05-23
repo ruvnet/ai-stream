@@ -6,3 +6,5 @@ numpy==1.21.4  # Compatible version with Python 3.10
 python-dotenv==0.19.2
 quart
 hypercorn
+pygobject
+pyngrok
