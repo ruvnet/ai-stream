@@ -31,7 +31,15 @@ def compose_payload(image_base64: str, prompt: str) -> dict:
                 "content": [
                     {
                         "type": "text",
-                        "text": prompt
+                        "text": (
+                            f"You are an expert in analyzing visual content. Please analyze the provided image for the following details:\n"
+                            f"1. Identify any text present in the image and provide a summary.\n"
+                            f"2. Describe the main objects and their arrangement.\n"
+                            f"3. Identify the context of the image (e.g., work environment, outdoor scene).\n"
+                            f"4. Provide any notable observations about lighting, colors, and overall composition.\n"
+                            f"4. Format using markdown.\n"
+                            f"Here is the image:\n{prompt}"
+                        )
                     },
                     {
                         "type": "image_url",
