@@ -1,58 +1,97 @@
 const video = document.getElementById('video');
-const shareWebcamButton = document.getElementById('shareWebcam');
-const shareScreenButton = document.getElementById('shareScreen');
-const shareApplicationButton = document.getElementById('shareApplication');
-const startCaptureButton = document.getElementById('startCapture');
-const stopCaptureButton = document.getElementById('stopCapture');
 const responsesDiv = document.getElementById('responses');
 const toggleSettingsButton = document.getElementById('toggleSettings');
 const settingsPanel = document.querySelector('.settings-panel');
 const saveSettingsButton = document.getElementById('saveSettings');
+const startCaptureButton = document.getElementById('startCapture');
+const stopCaptureButton = document.getElementById('stopCapture');
 let captureInterval;
 let refreshRate = 15;
 let customPrompt = "Analyze this frame";
 let apiKey = "";
+let activeStream = null;
+let isProcessing = false; // Flag to track if processing is in progress
 
-// Handle button toggles and video stream selection
-document.querySelectorAll('.btn-group-toggle .btn').forEach(button => {
-    button.addEventListener('click', async (event) => {
-        // Remove active class from all buttons
-        document.querySelectorAll('.btn-group-toggle .btn').forEach(btn => btn.classList.remove('active'));
+function logMessage(message) {
+    const p = document.createElement('p');
+    p.textContent = message;
+    responsesDiv.appendChild(p);
+    responsesDiv.scrollTop = responsesDiv.scrollHeight; // Scroll to bottom
+}
 
-        // Add active class to the clicked button
-        event.target.closest('.btn').classList.add('active');
+async function startWebcamStream() {
+    activeStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    logMessage("Webcam stream started.");
+    video.srcObject = activeStream;
+}
 
-        const selectedButton = event.target.closest('.btn').querySelector('input');
-        if (!selectedButton) {
-            console.error('No input element found inside the clicked button.');
-            return;
-        }
+async function startScreenShare() {
+    activeStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+    logMessage("Screen share started.");
+    video.srcObject = activeStream;
+}
 
-        const selectedButtonId = selectedButton.id;
-        let stream;
-        try {
-            if (selectedButtonId === 'shareWebcam') {
-                stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            } else if (selectedButtonId === 'shareScreen') {
-                stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            } else if (selectedButtonId === 'shareApplication') {
-                stream = await navigator.mediaDevices.getDisplayMedia({
-                    video: {
-                        cursor: "always",
-                        displaySurface: "application"
-                    }
-                });
-            }
-            video.srcObject = stream;
-        } catch (err) {
-            console.error(`Error accessing ${selectedButtonId}: `, err);
+async function startApplicationShare() {
+    activeStream = await navigator.mediaDevices.getDisplayMedia({
+        video: {
+            cursor: "always",
+            displaySurface: "application"
         }
     });
+    logMessage("Application share started.");
+    video.srcObject = activeStream;
+}
+
+async function handleStreamSelection(event) {
+    if (isProcessing) {
+        event.stopImmediatePropagation(); // Stop event propagation immediately
+        return; // Terminate the function
+    }
+    isProcessing = true; // Set the flag to indicate processing is in progress
+
+    // Remove active class from all buttons
+    document.querySelectorAll('.btn-group-toggle .btn').forEach(btn => btn.classList.remove('active'));
+
+    // Add active class to the clicked button
+    event.target.closest('.btn').classList.add('active');
+
+    const selectedButton = event.target.closest('.btn').querySelector('input');
+    if (!selectedButton) {
+        console.error('No input element found inside the clicked button.');
+        isProcessing = false; // Reset the flag
+        return;
+    }
+
+    const selectedButtonId = selectedButton.id;
+    if (activeStream) {
+        // Stop the previous stream
+        let tracks = activeStream.getTracks();
+        tracks.forEach(track => track.stop());
+        activeStream = null;
+    }
+
+    if (selectedButtonId === 'shareWebcam') {
+        await startWebcamStream();
+    } else if (selectedButtonId === 'shareScreen') {
+        await startScreenShare();
+    } else if (selectedButtonId === 'shareApplication') {
+        await startApplicationShare();
+    }
+
+    isProcessing = false; // Reset the flag after processing is complete
+}
+
+// Event delegation for stream selection buttons
+document.body.addEventListener('click', (event) => {
+    if (event.target.closest('.btn-group-toggle .btn')) {
+        handleStreamSelection(event);
+    }
 });
 
 // Toggle settings panel
 toggleSettingsButton.addEventListener('click', () => {
     settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+    logMessage("Settings panel toggled.");
 });
 
 // Save settings
@@ -61,17 +100,35 @@ saveSettingsButton.addEventListener('click', () => {
     refreshRate = document.getElementById('refreshRate').value || 15;
     apiKey = document.getElementById('apiKey').value || "";
     settingsPanel.style.display = 'none';
+    logMessage("Settings saved.");
 });
 
 // Start Capture
 startCaptureButton.addEventListener('click', () => {
+    if (isProcessing || captureInterval) {
+        return; // Terminate if processing is in progress or capture is already running
+    }
+    isProcessing = true; // Set the flag to indicate processing is in progress
+
     captureFrame(); // Capture the first frame immediately
     captureInterval = setInterval(captureFrame, refreshRate * 1000); // Capture every `refreshRate` seconds
+    logMessage("Capture started.");
+
+    isProcessing = false; // Reset the flag after processing is complete
 });
 
 // Stop Capture
 stopCaptureButton.addEventListener('click', () => {
+    if (isProcessing || !captureInterval) {
+        return; // Terminate if processing is in progress or capture is not running
+    }
+    isProcessing = true; // Set the flag to indicate processing is in progress
+
     clearInterval(captureInterval);
+    captureInterval = null;
+    logMessage("Capture stopped.");
+
+    isProcessing = false; // Reset the flag after processing is complete
 });
 
 function captureFrame() {
@@ -82,6 +139,7 @@ function captureFrame() {
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg');
 
+    logMessage("Frame captured and sent to API.");
     fetch('/process_frame', {
         method: 'POST',
         headers: {
@@ -94,8 +152,10 @@ function captureFrame() {
         const p = document.createElement('p');
         p.textContent = data.response;
         responsesDiv.appendChild(p);
+        responsesDiv.scrollTop = responsesDiv.scrollHeight; // Scroll to bottom
     })
     .catch(error => {
         console.error('Error:', error);
+        logMessage(`Error: ${error.message}`);
     });
 }

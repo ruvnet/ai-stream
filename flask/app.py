@@ -1,8 +1,10 @@
 import base64
 import os
 import cv2
+import re
 import numpy as np
 import requests
+import time
 from flask import Flask, request, jsonify, render_template
 
 app = Flask(__name__)
@@ -52,15 +54,40 @@ def compose_headers(api_key: str) -> dict:
 def prompt_image(image_base64: str, prompt: str, api_key: str) -> str:
     headers = compose_headers(api_key=api_key)
     payload = compose_payload(image_base64=image_base64, prompt=prompt)
-    response = requests.post(url=API_URL, headers=headers, json=payload)
-    
-    if response.status_code != 200:
-        raise ValueError(f"API request failed with status code {response.status_code}: {response.text}")
-    
-    response_json = response.json()
-    if 'error' in response_json:
-        raise ValueError(response_json['error']['message'])
-    return response_json['choices'][0]['message']['content']
+
+    while True:
+        response = requests.post(url=API_URL, headers=headers, json=payload)
+        if response.status_code == 200:
+            response_json = response.json()
+            if 'error' in response_json:
+                raise ValueError(response_json['error']['message'])
+            return response_json['choices'][0]['message']['content']
+        elif response.status_code == 429:
+            response_json = response.json()
+            error_message = response_json.get('error', {}).get('message', '')
+            wait_time = parse_wait_time(error_message)
+            if wait_time:
+                print(f"Rate limit exceeded. Waiting for {wait_time} seconds.")
+                time.sleep(wait_time)
+            else:
+                raise ValueError(f"Rate limit exceeded but could not parse wait time from message: {error_message}")
+        else:
+            raise ValueError(f"API request failed with status code {response.status_code}: {response.text}")
+
+def parse_wait_time(error_message: str) -> int:
+    match = re.search(r"try again in (\d+m)?(\d+\.\ds)?", error_message)
+    if match:
+        minutes = match.group(1)
+        seconds = match.group(2)
+
+        total_wait_time = 0
+        if minutes:
+            total_wait_time += int(minutes[:-1]) * 60  # Convert minutes to seconds
+        if seconds:
+            total_wait_time += float(seconds[:-1])  # Add seconds
+
+        return int(total_wait_time)
+    return None
 
 @app.route('/')
 def index():
