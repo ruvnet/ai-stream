@@ -1,5 +1,5 @@
 const video = document.getElementById('video');
-const responsesDiv = document.getElementById('responses');
+const formattedMarkdownDiv = document.getElementById('formattedMarkdown');
 const toggleSettingsButton = document.getElementById('toggleSettings');
 const settingsPanel = document.querySelector('.settings-panel');
 const saveSettingsButton = document.getElementById('saveSettings');
@@ -15,8 +15,8 @@ let isProcessing = false; // Flag to track if processing is in progress
 function logMessage(message) {
     const p = document.createElement('p');
     p.textContent = message;
-    responsesDiv.appendChild(p);
-    responsesDiv.scrollTop = responsesDiv.scrollHeight; // Scroll to bottom
+    formattedMarkdownDiv.appendChild(p);
+    formattedMarkdownDiv.scrollTop = formattedMarkdownDiv.scrollHeight; // Scroll to bottom
 }
 
 async function startWebcamStream() {
@@ -149,10 +149,9 @@ function captureFrame() {
     })
     .then(response => response.json())
     .then(data => {
-        const p = document.createElement('p');
-        p.textContent = data.response;
-        responsesDiv.appendChild(p);
-        responsesDiv.scrollTop = responsesDiv.scrollHeight; // Scroll to bottom
+        const formattedMarkdown = marked.parse(data.response); // Fixed function call
+        formattedMarkdownDiv.innerHTML = formattedMarkdown;
+        formattedMarkdownDiv.scrollTop = formattedMarkdownDiv.scrollHeight; // Scroll to bottom
     })
     .catch(error => {
         console.error('Error:', error);
