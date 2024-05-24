@@ -18,11 +18,17 @@ document.querySelectorAll('.btn-group-toggle .btn').forEach(button => {
     button.addEventListener('click', async (event) => {
         // Remove active class from all buttons
         document.querySelectorAll('.btn-group-toggle .btn').forEach(btn => btn.classList.remove('active'));
-        
+
         // Add active class to the clicked button
         event.target.closest('.btn').classList.add('active');
 
-        const selectedButtonId = event.target.querySelector('input').id;
+        const selectedButton = event.target.closest('.btn').querySelector('input');
+        if (!selectedButton) {
+            console.error('No input element found inside the clicked button.');
+            return;
+        }
+
+        const selectedButtonId = selectedButton.id;
         let stream;
         try {
             if (selectedButtonId === 'shareWebcam') {
@@ -59,6 +65,7 @@ saveSettingsButton.addEventListener('click', () => {
 
 // Start Capture
 startCaptureButton.addEventListener('click', () => {
+    captureFrame(); // Capture the first frame immediately
     captureInterval = setInterval(captureFrame, refreshRate * 1000); // Capture every `refreshRate` seconds
 });
 

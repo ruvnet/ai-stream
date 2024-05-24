@@ -58,7 +58,25 @@
     <div class="container text-center">
         <h1 class="my-4">Media Stream Capture & Analysis</h1>
         <p class="mb-4">A web app to capture and analyze media streams from your webcam, desktop, or specific apps. Easily switch sources and capture frames at intervals. Use AI for insightful frame analysis and summaries.</p>
-        <button id="toggleSettings" class="btn btn-info mb-4">Settings</button>
+        <video id="video" class="mb-4" autoplay></video>
+        <div class="button-container">
+            <div class="btn-group btn-group-toggle mb-4" data-toggle="buttons">
+                <label class="btn btn-secondary">
+                    <input type="radio" name="options" id="shareWebcam" autocomplete="off"> Share Webcam
+                </label>
+                <label class="btn btn-secondary">
+                    <input type="radio" name="options" id="shareScreen" autocomplete="off"> Share Screen
+                </label>
+                <label class="btn btn-secondary">
+                    <input type="radio" name="options" id="shareApplication" autocomplete="off"> Share Application
+                </label>
+            </div>
+            <div class="btn-group mb-4">
+                <button id="startCapture" class="btn btn-primary">Start Capture</button>
+                <button id="stopCapture" class="btn btn-danger">Stop Capture</button>
+                <button id="toggleSettings" class="btn btn-info">Settings</button>
+            </div>
+        </div>
         <div class="settings-panel card card-body">
             <ul class="nav nav-tabs" id="settingsTabs" role="tablist">
                 <li class="nav-item">
@@ -73,33 +91,15 @@
             </ul>
             <div class="tab-content" id="settingsTabsContent">
                 <div class="tab-pane fade show active" id="prompt" role="tabpanel" aria-labelledby="prompt-tab">
-                    <textarea id="customPrompt" class="form-control" rows="3" placeholder="Enter custom prompt here..."></textarea>
+                    <textarea id="customPrompt" class="form-control" rows="3" placeholder="Enter custom prompt here...">Analyze this frame</textarea>
                 </div>
                 <div class="tab-pane fade" id="settings" role="tabpanel" aria-labelledby="settings-tab">
-                    <input type="number" id="refreshRate" class="form-control" placeholder="Refresh rate in seconds">
+                    <input type="number" id="refreshRate" class="form-control" placeholder="Refresh rate in seconds" value="15">
                 </div>
                 <div class="tab-pane fade" id="api" role="tabpanel" aria-labelledby="api-tab">
-                    <input type="text" id="apiKey" class="form-control" placeholder="OpenAI API Key">
+                    <input type="text" id="apiKey" class="form-control" placeholder="OpenAI API Key" value="">
                 </div>
                 <button id="saveSettings" class="btn btn-success mt-3">Save Settings</button>
-            </div>
-        </div>
-        <video id="video" class="mb-4" autoplay></video>
-        <div class="button-container">
-            <div class="btn-group btn-group-toggle mb-4" data-toggle="buttons">
-                <label class="btn btn-secondary">
-                    <input type="radio" name="options" id="shareWebcam" autocomplete="off"> Share Webcam
-                </label>
-                <label class="btn btn-secondary">
-                    <input type="radio" name="options" id="shareScreen" autocomplete="off"> Share Screen
-                </label>
-                <label class="btn btn-secondary">
-                    <input type="radio" name="options" id="shareApplication" autocomplete="off"> Share Application
-                </label>
-            </div>
-            <div class="btn-group">
-                <button id="startCapture" class="btn btn-primary">Start Capture</button>
-                <button id="stopCapture" class="btn btn-danger">Stop Capture</button>
             </div>
         </div>
         <div id="responses" class="text-left"></div>
