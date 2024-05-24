@@ -91,7 +91,7 @@ document.body.addEventListener('click', (event) => {
 // Toggle settings panel
 toggleSettingsButton.addEventListener('click', () => {
     settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
-    logMessage("Settings panel toggled.");
+    logMessage("");
 });
 
 // Save settings
